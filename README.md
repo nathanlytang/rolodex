@@ -126,13 +126,14 @@ go build
 ## Usage
 
 1. Copy `config.example.json` to `config.json`
-2. Edit `config.json` with your SSH hosts and authentication details
+2. Edit `config.json` with your SSH hosts and [authentication details](#example-configurations)
 3. Run `./rolodex`
-4. Select a host from the list and press Enter
 
 ## Tips
 
 Rolodex automatically logs all connection attempts and debugging information to date-based files in the `logs/` directory.  If you encounter connection issues, check today's log file for detailed diagnostic information.
+
+To use the program anywhere, add it to your PATH.
 
 ### Security Best Practices
 
