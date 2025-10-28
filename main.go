@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
@@ -187,6 +188,15 @@ func clearScreen() {
 	fmt.Print("\033[H\033[2J")
 }
 
+// Returns the directory containing the executable
+func getExecutableDir() (string, error) {
+	exePath, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	return filepath.Dir(exePath), nil
+}
+
 func main() {
 	if err := logger.Init(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
@@ -194,10 +204,20 @@ func main() {
 	}
 	defer logger.Close()
 
-	data, err := os.ReadFile("config.json")
+	// Get the directory where the executable is located
+	exeDir, err := getExecutableDir()
 	if err != nil {
-		logger.Fatalf("Failed to read config.json: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: Failed to read config.json: %v\n", err)
+		logger.Fatalf("Failed to get executable directory: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to get executable directory: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Look for config.json in the executable's directory
+	configPath := filepath.Join(exeDir, "config.json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		logger.Fatalf("Failed to read config.json from %s: %v", configPath, err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to read config.json from %s: %v\n", configPath, err)
 		os.Exit(1)
 	}
 
