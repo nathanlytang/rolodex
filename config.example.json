@@ -1,0 +1,16 @@
+{
+	"hosts": [
+		{
+			"name": "Host Name",
+			"host": "Host IP",
+			"port": 22,
+			"user": "root",
+			"ssh_agent": false,
+			"identity_file": "",
+			"identity_passphrase": "",
+			"keyring_service": "",
+			"keyring_account": "",
+			"password": "password"
+		}
+	]
+}
