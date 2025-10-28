@@ -10,6 +10,7 @@ An SSH rolodex for your terminal with multi-method authentication support.
 ## Upcoming Features
 - **SSH Config File Support**: Support for SSH config file (e.g. `~/.ssh/config`)
 - **Config Management**: Create and delete host configurations
+- **Folders**: Sort hosts into groups
 
 ## Authentication Methods
 
