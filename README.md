@@ -126,7 +126,7 @@ go build
 ## Usage
 
 1. Copy `config.example.json` to `config.json`
-2. Edit `config.json` with your SSH hosts and [authentication details](#example-configurations)
+2. Edit `config.json` with your SSH hosts and [authentication details](#example-configurations).  Alternatively you can add hosts interactively within the program.
 3. Run `./rolodex`
 
 ## Tips
@@ -139,6 +139,6 @@ To use the program anywhere, add it to your PATH.
 
 1. **Prefer SSH Agent**: Most secure, keys never touch disk in decrypted form
 2. **Use Identity Files**: Better than passwords, supports key rotation
-3. **Avoid Plain Passwords**: Only use as last resort or for legacy systems
-4. **Use Encrypted Keys**: Protect identity files with passphrases
-5. **OS Keyring**: Store passwords in system keyring instead of config file
+3. **Use Encrypted Keys**: Protect identity files with passphrases
+4. **OS Keyring**: Store passwords in system keyring instead of config file
+5. **Avoid Plain Passwords**: Only use as last resort or for legacy systems
