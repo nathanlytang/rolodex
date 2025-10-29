@@ -26,8 +26,6 @@ type AuthConfig struct {
 func buildAuthMethods(config AuthConfig) []ssh.AuthMethod {
 	var authMethods []ssh.AuthMethod
 
-	logger.Printf("Building authentication methods for %v", config)
-
 	if config.SSHAgent {
 		if agentAuth := TrySSHAgent(); agentAuth != nil {
 			authMethods = append(authMethods, agentAuth)
@@ -131,5 +129,6 @@ func StartSession(host string, port int, user string, authConfig AuthConfig) err
 		return logger.Fatalf("Failed to start shell: %v", err)
 	}
 	session.Wait()
+
 	return nil
 }
