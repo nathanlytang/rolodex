@@ -6,10 +6,10 @@ An SSH rolodex for your terminal with multi-method authentication support.
 - **Multiple Authentication Methods**: Support for SSH agent, identity files, OS keyring, and passwords
 - **Automatic Priority Chain**: Tries more secure methods first, falls back gracefully
 - **Cross-Platform**: Works on Windows, macOS, and Linux
+- **Config Management**: Create and delete host configurations
 
 ## Upcoming Features
 - **SSH Config File Support**: Support for SSH config file (e.g. `~/.ssh/config`)
-- **Config Management**: Create and delete host configurations
 - **Folders**: Sort hosts into groups
 
 ## Authentication Methods
