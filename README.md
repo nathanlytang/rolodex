@@ -56,11 +56,11 @@ Create a `config.json` file in the project root:
 | `port` | int | Yes | SSH port (usually 22) |
 | `user` | string | Yes | SSH username |
 | `ssh_agent` | bool | No | Use SSH agent if available |
-| `identity_file` | string | No | Path to SSH private key (supports `~` expansion) |
+| `identity_file` | string | No | Path to SSH private key (supports `~\` expansion) |
 | `identity_passphrase` | string | No | Passphrase for encrypted identity file |
 | `keyring_service` | string | No | OS keyring service name |
 | `keyring_account` | string | No | OS keyring account identifier |
-| `password` | string | No | SSH password (fallback) |
+| `password` | string | No | SSH password |
 
 ### Example Configurations
 
