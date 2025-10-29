@@ -5,20 +5,40 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"time"
 
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/list"
+	"github.com/charmbracelet/bubbles/textinput"
 	tea "github.com/charmbracelet/bubbletea"
 	lg "github.com/charmbracelet/lipgloss"
+	"github.com/micmonay/keybd_event"
 	"github.com/nathanlytang/rolodex/internal/logger"
 	"github.com/nathanlytang/rolodex/internal/ssh"
+	"golang.org/x/term"
+)
+
+type viewState int
+
+const (
+	listView viewState = iota
+	formView
+	deleteConfirmView
 )
 
 type Model struct {
-	list    list.Model
-	hosts   []Host
-	err     error
-	showErr bool
+	list              list.Model
+	hosts             []Host
+	err               error
+	showErr           bool
+	view              viewState
+	form              formModel
+	configPath        string
+	hostToDelete      *Host
+	hostToDeleteIndex int
+	width             int
+	height            int
 }
 
 type Item struct {
@@ -56,7 +76,8 @@ type errorMsg struct {
 
 var docStyle = lg.NewStyle().Margin(1, 2)
 var enter = key.NewBinding(key.WithKeys("enter"), key.WithHelp("⏎", "connect"))
-var isGlobalQuit = false
+var addHost = key.NewBinding(key.WithKeys("a"), key.WithHelp("a", "add host"))
+var deleteHost = key.NewBinding(key.WithKeys("d"), key.WithHelp("d", "delete host"))
 
 func (i Item) Title() string       { return i.host.Name }
 func (i Item) Description() string { return i.host.Host }
@@ -71,15 +92,17 @@ func buildList(hosts []Host) list.Model {
 	hostList := list.New(items, list.NewDefaultDelegate(), 0, 0)
 	hostList.Title = "Rolodex"
 	hostList.AdditionalShortHelpKeys = func() []key.Binding {
-		return []key.Binding{enter}
+		return []key.Binding{enter, addHost, deleteHost}
 	}
 	return hostList
 }
 
-func initialModel(hosts []Host) Model {
+func initialModel(hosts []Host, configPath string) Model {
 	return Model{
-		list:  buildList(hosts),
-		hosts: hosts,
+		list:       buildList(hosts),
+		hosts:      hosts,
+		view:       listView,
+		configPath: configPath,
 	}
 }
 
@@ -88,67 +111,125 @@ func (m Model) Init() tea.Cmd {
 }
 
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	kb, _ := keybd_event.NewKeyBonding()
+	kb.SetKeys(keybd_event.VK_SPACE)
+
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		// If showing error, any key dismisses it (except quit)
-		if m.showErr {
-			if msg.String() == "ctrl+c" || msg.String() == "q" {
-				isGlobalQuit = true
-				return Quit(m)
-			}
-			// Any other key dismisses the error
-			m.showErr = false
-			m.err = nil
-			return m, nil
-		}
-
-		if msg.String() == "ctrl+c" || msg.String() == "q" {
-			isGlobalQuit = true
+		// Global quit
+		if msg.String() == "ctrl+c" {
 			return Quit(m)
 		}
 
-		if key.Matches(msg, enter) {
-			selected := m.list.SelectedItem()
-			if selected != nil {
-				if it, ok := selected.(Item); ok {
-					return m, func() tea.Msg {
-						clearScreen()
-						authConfig := ssh.AuthConfig{
-							SSHAgent:           it.host.SSHAgent,
-							IdentityFile:       it.host.IdentityFile,
-							IdentityPassphrase: it.host.IdentityPassphrase,
-							KeyringService:     it.host.KeyringService,
-							KeyringAccount:     it.host.KeyringAccount,
-							Password:           it.host.Password,
-						}
-						err := ssh.StartSession(it.host.Host, it.host.Port, it.host.User, authConfig)
-						if err != nil {
-							return errorMsg{err: err}
-						}
-						return resetListMsg{}
-					}
-				}
-			}
+		// Handle based on current view
+		switch m.view {
+		case formView:
+			return m.updateForm(msg)
+		case deleteConfirmView:
+			return m.updateDeleteConfirm(msg)
 		}
+		return m.updateList(msg)
 
 	case errorMsg:
 		m.err = msg.err
 		m.showErr = true
+		m.view = listView
 		return m, nil
 
 	case resetListMsg:
-		m.list = buildList(m.hosts)
-		m.showErr = false
-		m.err = nil
-		docStyle.Render(m.list.View())
-		m.list, _ = m.list.Update(msg)
-		return Quit(m)
+		return m, func() tea.Msg {
+			w, h, _ := term.GetSize(int(os.Stdout.Fd()))
+			return tea.WindowSizeMsg{Width: w, Height: h}
+		}
 
 	case tea.WindowSizeMsg:
+		logger.Printf("Window size: %d x %d", msg.Width, msg.Height)
 		h, v := docStyle.GetFrameSize()
 		m.list.SetSize(msg.Width-h, msg.Height-v)
+		m.width = msg.Width
+		m.height = msg.Height
+
+		// HACK: Keyboard event so that arrow keys work immediately
+		// TODO: Figure out why an extra initial key press is needed
+		kb.Press()
+		time.Sleep(10 * time.Millisecond)
+		kb.Release()
 	}
 
+	// Pass other messages to the list if in list view
+	if m.view == listView {
+		var cmd tea.Cmd
+		m.list, cmd = m.list.Update(msg)
+		return m, cmd
+	}
+	return m, nil
+}
+
+func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	// If showing error, any key dismisses it (except quit)
+	if m.showErr {
+		if msg.String() == "q" {
+			return Quit(m)
+		}
+
+		m.showErr = false
+		m.err = nil
+		return m, nil
+	}
+
+	if msg.String() == "q" {
+		return Quit(m)
+	}
+
+	// Only key commands when NOT in filtering mode
+	if !m.list.SettingFilter() {
+		// Handle 'a' key to add new host
+		if key.Matches(msg, addHost) {
+			m.view = formView
+			m.form = newFormModel()
+			return m, textinput.Blink
+		}
+
+		// Handle 'd' key to delete host
+		if key.Matches(msg, deleteHost) {
+			selected := m.list.SelectedItem()
+			if selected != nil {
+				if it, ok := selected.(Item); ok {
+					m.hostToDelete = &it.host
+					m.hostToDeleteIndex = m.list.Index()
+					m.view = deleteConfirmView
+					return m, nil
+				}
+			}
+		}
+	}
+
+	// Handle enter to connect
+	if key.Matches(msg, enter) {
+		selected := m.list.SelectedItem()
+		if selected != nil {
+			if it, ok := selected.(Item); ok {
+				return m, func() tea.Msg {
+					clearScreen()
+					authConfig := ssh.AuthConfig{
+						SSHAgent:           it.host.SSHAgent,
+						IdentityFile:       it.host.IdentityFile,
+						IdentityPassphrase: it.host.IdentityPassphrase,
+						KeyringService:     it.host.KeyringService,
+						KeyringAccount:     it.host.KeyringAccount,
+						Password:           it.host.Password,
+					}
+					err := ssh.StartSession(it.host.Host, it.host.Port, it.host.User, authConfig)
+					if err != nil {
+						return errorMsg{err: err}
+					}
+					return resetListMsg{}
+				}
+			}
+		}
+	}
+
+	// Pass all other keys to the list for navigation (arrow keys, etc.)
 	var cmd tea.Cmd
 	m.list, cmd = m.list.Update(msg)
 	return m, cmd
@@ -176,11 +257,19 @@ func (m Model) View() string {
 
 		return docStyle.Render(header + "\n" + errMsg + "\n" + footer)
 	}
+
+	if m.view == formView {
+		return m.renderForm()
+	}
+
+	if m.view == deleteConfirmView {
+		return m.renderDeleteConfirm()
+	}
+
 	return docStyle.Render(m.list.View())
 }
 
 func Quit(m Model) (tea.Model, tea.Cmd) {
-	// m.quit = true
 	return m, tea.Quit
 }
 
@@ -188,13 +277,26 @@ func clearScreen() {
 	fmt.Print("\033[H\033[2J")
 }
 
-// Returns the directory containing the executable
-func getExecutableDir() (string, error) {
+// Returns the directory containing the config file
+// If running via 'go run', uses current working directory
+// Otherwise, uses the directory containing the executable
+func getConfigDir() (string, error) {
 	exePath, err := os.Executable()
 	if err != nil {
 		return "", err
 	}
-	return filepath.Dir(exePath), nil
+
+	exeDir := filepath.Dir(exePath)
+
+	if strings.Contains(exeDir, "go-build") || strings.Contains(exeDir, "Temp") {
+		cwd, err := os.Getwd()
+		if err != nil {
+			return "", err
+		}
+		return cwd, nil
+	}
+
+	return exeDir, nil
 }
 
 func main() {
@@ -204,16 +306,16 @@ func main() {
 	}
 	defer logger.Close()
 
-	// Get the directory where the executable is located
-	exeDir, err := getExecutableDir()
+	// Get the directory where the config file is located
+	configDir, err := getConfigDir()
 	if err != nil {
-		logger.Fatalf("Failed to get executable directory: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: Failed to get executable directory: %v\n", err)
+		logger.Fatalf("Failed to get config directory: %v", err)
+		fmt.Fprintf(os.Stderr, "Error: Failed to get config directory: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Look for config.json in the executable's directory
-	configPath := filepath.Join(exeDir, "config.json")
+	// Look for config.json in the config directory
+	configPath := filepath.Join(configDir, "config.json")
 	data, err := os.ReadFile(configPath)
 	if err != nil {
 		logger.Fatalf("Failed to read config.json from %s: %v", configPath, err)
@@ -230,7 +332,7 @@ func main() {
 
 	logger.Printf("Loaded configuration with %d hosts", len(configuration.Hosts))
 
-	p := tea.NewProgram(initialModel(configuration.Hosts), tea.WithAltScreen())
+	p := tea.NewProgram(initialModel(configuration.Hosts, configPath), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		logger.Fatalf("Application error: %v", err)

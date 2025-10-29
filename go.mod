@@ -8,6 +8,7 @@ require (
 	github.com/charmbracelet/bubbles v0.21.0
 	github.com/charmbracelet/bubbletea v1.3.10
 	github.com/charmbracelet/lipgloss v1.1.0
+	github.com/micmonay/keybd_event v1.1.2
 	github.com/zalando/go-keyring v0.2.6
 	golang.org/x/crypto v0.42.0
 	golang.org/x/term v0.35.0
