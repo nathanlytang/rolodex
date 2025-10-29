@@ -1,5 +1,5 @@
 # rolodex
-An SSH rolodex for your terminal with multi-method authentication support.
+An SSH directory for your terminal with multi-method authentication support.
 
 ## Features
 
