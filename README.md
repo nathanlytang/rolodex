@@ -11,6 +11,7 @@ An SSH directory for your terminal with multi-method authentication support.
 ## Upcoming Features
 - **SSH Config File Support**: Support for SSH config file (e.g. `~/.ssh/config`)
 - **Folders**: Sort hosts into groups
+- **Multiple Users**: Multi-user support per host
 
 ## Authentication Methods
 
