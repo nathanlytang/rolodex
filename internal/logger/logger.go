@@ -16,8 +16,15 @@ var (
 
 // Initializes the file logger
 func Init() error {
-	// Create logs directory if it doesn't exist
-	logsDir := "logs"
+	// Get executable path
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %w", err)
+	}
+	exeDir := filepath.Dir(exePath)
+
+	// Create logs directory if it doesn't exist (beside the executable)
+	logsDir := filepath.Join(exeDir, "logs")
 	if err := os.MkdirAll(logsDir, 0755); err != nil {
 		return fmt.Errorf("failed to create logs directory: %w", err)
 	}
@@ -26,10 +33,10 @@ func Init() error {
 	date := time.Now().Format("2006-01-02")
 	logPath := filepath.Join(logsDir, fmt.Sprintf("rolodex_%s.log", date))
 
-	var err error
-	logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
-	if err != nil {
-		return fmt.Errorf("failed to open log file: %w", err)
+	var openErr error
+	logFile, openErr = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if openErr != nil {
+		return fmt.Errorf("failed to open log file: %w", openErr)
 	}
 
 	// Create logger that writes to file
