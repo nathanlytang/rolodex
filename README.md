@@ -28,7 +28,7 @@ Rolodex supports multiple authentication methods with automatic fallback.  Confi
 
 Create a `config.json` file in the project root:
 
-```json
+```jsonc
 {
   "hosts": [
     {
@@ -36,13 +36,20 @@ Create a `config.json` file in the project root:
       "host": "server.example.com",
       "port": 22,
       "user": "root",
-      
+
+      // If using SSH Agent
       "ssh_agent": true,
+
+      // If using identity file
       "identity_file": "~/.ssh/id_ed25519",
       "identity_passphrase": "",
+
+      // If using keyring
       "keyring_service": "rolodex",
       "keyring_account": "root@server",
-      "password": "fallback_password"
+
+      // If using password
+      "password": "password123"
     }
   ]
 }
@@ -132,7 +139,7 @@ go build
 
 ## Tips
 
-Rolodex automatically logs all connection attempts and debugging information to date-based files in the `logs/` directory.  If you encounter connection issues, check today's log file for detailed diagnostic information.
+Rolodex automatically logs all connection attempts and debugging information to the `logs/` directory.  If you encounter connection issues, check the log files for detailed diagnostic information.
 
 To use the program anywhere, add it to your PATH.
 
