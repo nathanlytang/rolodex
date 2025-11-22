@@ -34,3 +34,6 @@ logs/
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Build output
+dist/
