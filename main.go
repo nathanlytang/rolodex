@@ -39,6 +39,7 @@ type Model struct {
 	hostToDeleteIndex int
 	width             int
 	height            int
+	connectHost       *Host
 }
 
 type Item struct {
@@ -113,7 +114,6 @@ func (m Model) Init() tea.Cmd {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	kb, _ := keybd_event.NewKeyBonding()
 	kb.SetKeys(keybd_event.VK_SPACE)
-
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		// Global quit
@@ -209,22 +209,8 @@ func (m Model) updateList(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		selected := m.list.SelectedItem()
 		if selected != nil {
 			if it, ok := selected.(Item); ok {
-				return m, func() tea.Msg {
-					clearScreen()
-					authConfig := ssh.AuthConfig{
-						SSHAgent:           it.host.SSHAgent,
-						IdentityFile:       it.host.IdentityFile,
-						IdentityPassphrase: it.host.IdentityPassphrase,
-						KeyringService:     it.host.KeyringService,
-						KeyringAccount:     it.host.KeyringAccount,
-						Password:           it.host.Password,
-					}
-					err := ssh.StartSession(it.host.Host, it.host.Port, it.host.User, authConfig)
-					if err != nil {
-						return errorMsg{err: err}
-					}
-					return resetListMsg{}
-				}
+				m.connectHost = &it.host
+				return Quit(m)
 			}
 		}
 	}
@@ -332,14 +318,49 @@ func main() {
 
 	logger.Printf("Loaded configuration with %d hosts", len(configuration.Hosts))
 
-	p := tea.NewProgram(initialModel(configuration.Hosts, configPath), tea.WithAltScreen())
+	model := initialModel(configuration.Hosts, configPath)
+	for {
+		p := tea.NewProgram(model, tea.WithAltScreen())
+		finalModel, err := p.Run()
+		if err != nil {
+			logger.Fatalf("Application error: %v", err)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 
-	if _, err := p.Run(); err != nil {
-		logger.Fatalf("Application error: %v", err)
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
+		m, ok := finalModel.(Model)
+		if !ok {
+			logger.Fatalf("Unexpected model type returned from Bubble Tea")
+			fmt.Fprintln(os.Stderr, "Error: Unexpected model type returned from Bubble Tea")
+			os.Exit(1)
+		}
+
+		if m.connectHost == nil {
+			logger.Printf("Application exited normally")
+			os.Exit(0)
+		}
+
+		clearScreen()
+
+		// Run SSH session in the main terminal buffer
+		h := m.connectHost
+		authConfig := ssh.AuthConfig{
+			SSHAgent:           h.SSHAgent,
+			IdentityFile:       h.IdentityFile,
+			IdentityPassphrase: h.IdentityPassphrase,
+			KeyringService:     h.KeyringService,
+			KeyringAccount:     h.KeyringAccount,
+			Password:           h.Password,
+		}
+		err = ssh.StartSession(h.Host, h.Port, h.User, authConfig, m.width, m.height)
+		if err != nil {
+			// Show error when we return to the TUI
+			model = initialModel(configuration.Hosts, configPath)
+			model.err = err
+			model.showErr = true
+		} else {
+			// Reset the TUI after a successful session
+			model = initialModel(configuration.Hosts, configPath)
+		}
 	}
-
-	logger.Printf("Application exited normally")
-	os.Exit(0)
 }

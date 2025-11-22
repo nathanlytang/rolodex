@@ -55,7 +55,7 @@ func buildAuthMethods(config AuthConfig) []ssh.AuthMethod {
 
 // Connects to an SSH server using multiple authentication methods with priority
 // Returns error if connection fails
-func StartSession(host string, port int, user string, authConfig AuthConfig) error {
+func StartSession(host string, port int, user string, authConfig AuthConfig, termWidth, termHeight int) error {
 	logger.Printf("Attempting connection to %s@%s:%d", user, host, port)
 
 	address := host + ":" + strconv.Itoa(port)
@@ -106,9 +106,16 @@ func StartSession(host string, port int, user string, authConfig AuthConfig) err
 	}
 	defer term.Restore(fd, oldState) // always restore
 
-	width, height, err := term.GetSize(fd)
-	if err != nil {
-		width, height = 80, 24
+	// Use provided terminal size or try to detect it
+	var width, height int
+	if termWidth > 0 && termHeight > 0 {
+		width, height = termWidth, termHeight
+	} else {
+		var err error
+		width, height, err = term.GetSize(fd)
+		if err != nil {
+			width, height = 80, 24
+		}
 	}
 
 	modes := ssh.TerminalModes{
